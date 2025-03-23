@@ -124,12 +124,11 @@ def gen_params(appid, query, domain):
         },
         "payload": {
             "message": {
-                "text": [{"role": "user", "content": query}]
+                "text": query
             }
         }
     }
     return data
-
 
 def main(appid, api_secret, api_key, Spark_url, domain, query):
     wsParam = Ws_Param(appid, api_key, api_secret, Spark_url)
@@ -143,19 +142,101 @@ def main(appid, api_secret, api_key, Spark_url, domain, query):
     ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
 
 
-if __name__ == "__main__":
-    main(
+text = []
+
+# length = 0
+
+def getText(role, content):
+    jsoncon = {}
+
+    history_put = """['工程','货物',]\n请从上面选项中选择一个属于下面文本的分类\n左侧边坡宣传标语
+            ,结果只输出1,2 ,如果都不属于输出0
+        """
+    text.append({'role': 'user', 'content': history_put})
+    text.append({'role': 'assistant', 'content': '0'})
+    # # 设置对话背景或者模型角色
+    # text.append({"role": "system", "content": "你现在扮演李白，你豪情万丈，狂放不羁；接下来请用李白的口吻和用户对话。"})
+    jsoncon["role"] = role
+    jsoncon["content"] = content
+    text.append(jsoncon)
+    return text
+
+# 获取长度
+def getlength(text):
+    length = 0
+    for content in text:
+        temp = content["content"]
+        leng = len(temp)
+        length += leng
+    return length
+
+# 检测长度
+def checklen(text):
+    while getlength(text) > 8000:
+        del text[0]
+    return text
+
+def detect_fake_news(query):
+    #param query: 输入的新闻内容
+    #return: 检测结果（是否为虚假新闻）
+
+    # 构造虚假新闻检测的提示词
+    prompt = f"""请判断以下新闻内容是否为虚假新闻，并给出判断理由：
+新闻内容：{query}
+
+请按照以下格式回答：
+1. 判断结果：[是/否]
+2. 判断理由：[理由]"""
+
+    # 调用星火大模型进行检测
+    result = main(
         appid="aa6753f8",
         api_secret="NjdkMjQwNmUxNmE0Nzg4N2I0YTAxMjVm",
         api_key="47bde95b69d50abf1a4d3411d72a2f74",
-        #appid、api_secret、api_key三个服务认证信息请前往开放平台控制台查看（https://console.xfyun.cn/services/bm35）
-        # Spark_url="wss://spark-api.xf-yun.com/v3.5/chat",      # Max环境的地址
-		Spark_url = "wss://spark-api.xf-yun.com/v4.0/chat",  # 4.0Ultra环境的地址
-        # Spark_url = "wss://spark-api.xf-yun.com/v3.1/chat"  # Pro环境的地址
-        # Spark_url = "wss://spark-api.xf-yun.com/v1.1/chat"  # Lite环境的地址
-        # domain="generalv3.5",     # Max版本
-		domain = "4.0Ultra",     # 4.0Ultra 版本
-        # domain = "generalv3"    # Pro版本
-        # domain = "lite"      # Lite版本址
-        query="给我写一篇100字的作文"
+        Spark_url="wss://spark-api.xf-yun.com/v4.0/chat",
+        domain="4.0Ultra",
+        query=prompt
     )
+    return result
+
+def parse_detection_result(result):
+    #param result: 星火大模型的返回结果
+    #return: 解析后的结果（判断结果和理由）
+
+    try:
+        # 提取判断结果和理由
+        lines = result.split("\n")
+        judgment = lines[0].split("：")[1].strip()
+        reason = lines[1].split("：")[1].strip()
+        return judgment, reason
+    except Exception as e:
+        print("解析结果时出错：", e)
+        return None, None
+
+if __name__ == "__main__":
+    text.clear()
+    while 1:
+        Input = input("\n" + "我：")
+        query = checklen(getText("user",Input))
+        answer = ""
+        print("星火:",end="")
+        main(
+            appid="aa6753f8",
+            api_secret="NjdkMjQwNmUxNmE0Nzg4N2I0YTAxMjVm",
+            api_key="47bde95b69d50abf1a4d3411d72a2f74",
+            #appid、api_secret、api_key三个服务认证信息请前往开放平台控制台查看（https://console.xfyun.cn/services/bm35）
+            # Spark_url="wss://spark-api.xf-yun.com/v3.5/chat",      # Max环境的地址
+            Spark_url = "wss://spark-api.xf-yun.com/v4.0/chat",  # 4.0Ultra环境的地址
+            # Spark_url = "wss://spark-api.xf-yun.com/v3.1/chat"  # Pro环境的地址
+            # Spark_url = "wss://spark-api.xf-yun.com/v1.1/chat"  # Lite环境的地址
+            # domain="generalv3.5",     # Max版本
+            domain = "4.0Ultra",     # 4.0Ultra 版本
+            # domain = "generalv3"    # Pro版本
+            # domain = "lite"      # Lite版本址
+            query=query
+        )
+
+        #获得星火AI模型助手的回答
+        getText("assistant",answer)
+
+
